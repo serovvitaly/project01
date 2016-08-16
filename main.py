@@ -1,29 +1,22 @@
 from datetime import datetime
 import progressbar
-from neuronet.network import Network
 import postgresql
+from sklearn.neural_network import BernoulliRBM
+from sklearn import preprocessing
+import numpy
 
-net = Network()
+db = postgresql.open('pq://postgres:123@localhost:5432/project01')
 
-net.input = 6
-net.output = 1
-net.hidden = 3, 2, 4
+limit = 3
 
-db = postgresql.open('pq://Vitaly:123@localhost:5432/project01')
+train_data_set_rows = db.prepare('SELECT * FROM train LIMIT ' + str(limit))
 
-train_data_set_rows = db.prepare('SELECT * FROM train LIMIT 10')
+#print(datetime.now())
 
-
-def prepare_output(data):
-    return data
-
-
-net.prepare_output = prepare_output
-
-print(datetime.now())
+X = []
 
 # 74180464
-pbar = progressbar.ProgressBar(widgets=[progressbar.Percentage(), progressbar.Bar()], maxval=10).start()
+#pbar = progressbar.ProgressBar(widgets=[progressbar.Percentage(), progressbar.Bar()], maxval=limit).start()
 row_index = 1
 for row in train_data_set_rows:
 
@@ -34,12 +27,22 @@ for row in train_data_set_rows:
     p_cliente_id = row[4]
     p_producto_id = row[5]
 
-    data_set = [p_semana, p_agencia_id, p_canal_id, p_ruta_sak, p_cliente_id, p_producto_id]
-    print(data_set)
-    result = net.train([1, 2, 3, 4, 5, 6])
-    # print(result)
-    pbar.update(row_index)
+    #pbar.update(row_index)
     row_index += 1
 
-pbar.finish()
-print(datetime.now())
+    X.append([row[0], row[1], row[2], row[3], row[4], row[5]])
+
+    #model = BernoulliRBM(5)
+    #X = numpy.array([[0, 0, 0], [0, 1, 1], [1, 0, 1], [1, 1, 1]])
+    #model.fit(X)
+
+#pbar.finish()
+#print(datetime.now())
+
+print(X)
+
+normal_X = preprocessing.normalize(X)
+scale_X = preprocessing.scale(X)
+
+print(normal_X)
+print(scale_X)

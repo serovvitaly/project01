@@ -6,7 +6,6 @@ class Layer:
     prev_layer_neurons_count = 0
     weights_matrix = {}
     neurons = {}
-    init_weight = .5
 
     def __init__(self, neurons_count=1, prev_layer_neurons_count=0):
         self.neurons_count = int(neurons_count)
@@ -15,11 +14,15 @@ class Layer:
         self.rebuild_layer()
         pass
 
+    @staticmethod
+    def get_init_weight():
+        return .1
+
     def init_weights_matrix(self):
         """Функция инициализации матрицы весов"""
         self_neurons_keys = []
         self_neurons_keys.extend(range(0, self.neurons_count))
-        self.weights_matrix = dict((key, [self.init_weight]*self.prev_layer_neurons_count) for key in self_neurons_keys)
+        self.weights_matrix = dict((key, [self.get_init_weight()]*self.prev_layer_neurons_count) for key in self_neurons_keys)
 
     def rebuild_layer(self):
         self_neurons_keys = []
