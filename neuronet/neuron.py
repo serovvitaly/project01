@@ -30,9 +30,7 @@ class Neuron:
         pass
 
     def set_output_value(self, val):
-        """
-        Устанавливает выходное значение
-        """
+        """Устанавливает выходное значение"""
         self.output_value = val
 
     def get_output_value(self, recalculate=True):
