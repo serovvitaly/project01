@@ -1,3 +1,5 @@
+from math import exp
+
 class Relation:
     """Связь между нейронами"""
 
@@ -6,7 +8,8 @@ class Relation:
         self.weight = weight
 
     def get_calculated_value(self):
-        return self.neuron.get_output_value() * self.weight
+        val = self.neuron.get_output_value()
+        return val * self.weight
 
 
 class Input:
@@ -56,7 +59,8 @@ class Neuron:
 
     def calculate_transfer_function(self, value):
         """Вычисление передаточной функции"""
-        return value / 2
+        v = 1 / value
+        return int(value >= 0.5)
 
     def train(self, data_set, weight_set):
         """Функция тренировки нейрона"""
