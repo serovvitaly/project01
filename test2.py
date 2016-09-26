@@ -1,4 +1,3 @@
-import csv
 import sqlite3
 import progressbar
 from pybrain.tools.shortcuts import buildNetwork
