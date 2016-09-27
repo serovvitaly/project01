@@ -44,6 +44,19 @@ def get_inputs_data_from_inputs_tickets_arr(tickets_arr):
         output += (close,)
     return output
 
+def get_target_data(date, cursor):
+    high_and_low = cursor.execute('select max(high) as high, min(low) as low '
+                                  'from stock '
+                                  'where datetime between ? and ? '
+                                  'order by datetime', (date+'000000', date+'235959'))
+    data = high_and_low.fetchone()
+    open = float(0)
+    high = float(data[0])
+    low = float(data[1])
+    close = float(0)
+    output = (open, high, low, close)
+    print(output)
+    return output
 
 net = buildNetwork(inputs_count * 4, 5, 5, 1)
 
@@ -62,13 +75,8 @@ with open('data/DAT_NT_EURUSD_M1_201602.csv') as csv_file:
     data_set = SupervisedDataSet(inputs_count * 4, 1)
     for key, row in enumerate(reader):
         """Обучение сети"""
-        open = float(row[1])
-        high = float(row[2])
-        low = float(row[3])
-        close = float(row[4])
-        current_datetime = datetime.strptime(row[0], '%Y%m%d %H%M%S')
-        cursor.execute('insert into stock values(?,?,?,?,?,?)', ('EURUSD_M1', current_datetime.strftime('%Y%m%d%H%M%S'),open, high, low, close))
-        continue
+        get_target_data(row[0][:8], cursor)
+        break
         if key < sample_width:
             continue
         open = float(row[1])
