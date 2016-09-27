@@ -1,16 +1,8 @@
-import csv
-from datetime import datetime
 import sqlite3
-
 import progressbar
 from pybrain.tools.shortcuts import buildNetwork
 from pybrain.datasets import SupervisedDataSet
 from pybrain.supervised.trainers import BackpropTrainer
-
-inputs_count = 3000
-
-"Горизонт предсказания в тикетах"
-prediction_horizon = 30  # 30 минут
 
 """
 1. Все открытые позиции должны быть закрыты в течении одного торгового дня
@@ -30,6 +22,8 @@ prediction_horizon = 30  # 30 минут
 
 """
 
+conn = sqlite3.connect('data.db')
+cursor = conn.cursor()
 
 def get_inputs_data_from_inputs_tickets_arr(tickets_arr):
     output = ()
@@ -44,74 +38,54 @@ def get_inputs_data_from_inputs_tickets_arr(tickets_arr):
         output += (close,)
     return output
 
-def get_target_data(date, cursor):
-    high_and_low = cursor.execute('select max(high) as high, min(low) as low '
-                                  'from stock '
-                                  'where datetime between ? and ? '
-                                  'order by datetime', (date+'000000', date+'235959'))
-    data = high_and_low.fetchone()
-    open = float(0)
-    high = float(data[0])
-    low = float(data[1])
-    close = float(0)
-    output = (open, high, low, close)
-    print(output)
-    return output
+"Количество входов НС"
+inputs_count = 3000
 
-net = buildNetwork(inputs_count * 4, 5, 5, 1)
+"Горизонт предсказания в тикетах"
+prediction_horizon = 30  # 30 минут
 
+""
 sample_width = inputs_count + prediction_horizon
 
-profit = 0
+"Минут в торговом дне"
+minutes_in_day = 1438
 
-conn = sqlite3.connect('data.db')
-cursor = conn.cursor()
+"Количество месяцев для обучающей выборки"
+train_ds_months_count = 4
 
-with open('data/DAT_NT_EURUSD_M1_201602.csv') as csv_file:
-    reader = csv.reader(csv_file, delimiter=';')
-    reader = list(reader)
-    bar = progressbar.ProgressBar(max_value=len(reader))
-    era_step = 0
-    data_set = SupervisedDataSet(inputs_count * 4, 1)
-    for key, row in enumerate(reader):
-        """Обучение сети"""
-        get_target_data(row[0][:8], cursor)
-        break
-        if key < sample_width:
-            continue
-        open = float(row[1])
-        high = float(row[2])
-        low = float(row[3])
-        close = float(row[4])
-        inputs_tickets_arr = reader[(key - sample_width):(key - prediction_horizon):1]
-        input_tuple = get_inputs_data_from_inputs_tickets_arr(inputs_tickets_arr)
-        data_set.addSample(input_tuple, (open,))
-        era_step += 1
-        if era_step > 10:
-            trainer = BackpropTrainer(net, data_set)
-            error = trainer.train()
-            print(error)
-            #result = net.activate(input_tuple)
-            #print('Error: ' + str(error) + ', Result: ' + str(result[0]) + ', Target: ' + str(open))
-            data_set = SupervisedDataSet(inputs_count * 4, 1)
-            era_step = 0
-            break
-        #bar.update(key)
-    conn.commit()
-    working_date = 0
-    for key, row in enumerate(reader):
-        """Использование сети"""
-        current_datetime = datetime.strptime(row[0], '%Y%m%d %H%M%S')
-        current_date = current_datetime.date()
-        print(current_date)
-        break
-        if key < sample_width:
-            continue
-        open = float(row[1])
-        high = float(row[2])
-        low = float(row[3])
-        close = float(row[4])
-        inputs_tickets_arr = reader[(key - sample_width):(key - prediction_horizon):1]
-        input_tuple = get_inputs_data_from_inputs_tickets_arr(inputs_tickets_arr)
-        result = net.activate(input_tuple)
-        print('Error: ' + str(error) + ', Result: ' + str(result[0]) + ', Target: ' + str(open))
+"Номер месяца для тестовой выборки"
+test_month_number = 8  # август
+
+"Коллекция нейронных сетей(НС), для каждой минуты в торговом дне"
+nets_arr = {}
+for nkey in range(1, minutes_in_day+1):
+    nets_arr[nkey] = {
+        'net': buildNetwork(inputs_count * 4, 5, 5, 4),
+        'ds': SupervisedDataSet(inputs_count * 4, 4)
+    }
+
+"""Процесс обучения"""
+print('Процесс обучения...')
+train_records = cursor.execute('SELECT * FROM stock_m1 limit 1')
+bar = progressbar.ProgressBar(max_value=train_records.rowcount*minutes_in_day)
+iterator = 0
+for row in train_records:
+    datetime = int(row[1])
+    inputs_tickets_arr = cursor.execute('SELECT * FROM stock_m1 limit 1')
+    input_tuple = get_inputs_data_from_inputs_tickets_arr(inputs_tickets_arr)
+    for mx in nets_arr:
+        mx['ds'].addSample(input_tuple, (row[2], row[3], row[4], row[5]))
+    iterator += 1
+    bar.update(iterator)
+
+for mx in nets_arr:
+    trainer = BackpropTrainer(mx['net'], mx['ds'])
+    error = trainer.train()
+
+
+"""Использование обученной сети"""
+print('Использование обученной сети...')
+for row in cursor.execute('SELECT * FROM stock_m1 limit 1'):
+        print(row)
+
+conn.close()
