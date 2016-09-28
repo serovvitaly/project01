@@ -23,23 +23,29 @@ from pybrain.supervised.trainers import BackpropTrainer
 """
 
 conn = sqlite3.connect('data.db')
-cursor = conn.cursor()
-
-def get_inputs_data_from_inputs_tickets_arr(tickets_arr):
-    output = ()
-    for row in tickets_arr:
-        open = float(row[1])
-        high = float(row[2])
-        low = float(row[3])
-        close = float(row[4])
-        output += (open,)
-        output += (high,)
-        output += (low,)
-        output += (close,)
-    return output
 
 "Количество входов НС"
-inputs_count = 3000
+inputs_count = 1000
+
+
+def get_inputs_data_set(datetime):
+    tickets_arr = conn.cursor().execute(
+        'SELECT open, high, low, close '
+        'FROM stock_m1 '
+        'WHERE datetime >= ? '
+        'ORDER BY datetime LIMIT ?',
+        (datetime, inputs_count)
+    )
+    output = ()
+    for row in tickets_arr:
+        output += row
+    return output
+
+def time_to_int(time):
+    """Преобразует время в номер минуты в сутках"""
+    hours = int(time[:2])
+    minutes = int(time[2:4])
+    return hours * 60 + minutes + 1
 
 "Горизонт предсказания в тикетах"
 prediction_horizon = 30  # 30 минут
@@ -48,7 +54,7 @@ prediction_horizon = 30  # 30 минут
 sample_width = inputs_count + prediction_horizon
 
 "Минут в торговом дне"
-minutes_in_day = 1438
+minutes_in_day = 1440
 
 "Количество месяцев для обучающей выборки"
 train_ds_months_count = 4
@@ -57,35 +63,34 @@ train_ds_months_count = 4
 test_month_number = 8  # август
 
 "Коллекция нейронных сетей(НС), для каждой минуты в торговом дне"
+print('Построение сети...')
 nets_arr = {}
-for nkey in range(1, minutes_in_day+1):
+for nkey in range(1, minutes_in_day + 1):
     nets_arr[nkey] = {
         'net': buildNetwork(inputs_count * 4, 5, 5, 4),
         'ds': SupervisedDataSet(inputs_count * 4, 4)
     }
 
 """Процесс обучения"""
-print('Процесс обучения...')
-train_records = cursor.execute('SELECT * FROM stock_m1 limit 1')
-bar = progressbar.ProgressBar(max_value=train_records.rowcount*minutes_in_day)
-iterator = 0
+print('Сбор данных...')
+train_records = conn.cursor().execute('SELECT * FROM stock_m1 LIMIT 1000')
 for row in train_records:
-    datetime = int(row[1])
-    inputs_tickets_arr = cursor.execute('SELECT * FROM stock_m1 limit 1')
-    input_tuple = get_inputs_data_from_inputs_tickets_arr(inputs_tickets_arr)
-    for mx in nets_arr:
-        mx['ds'].addSample(input_tuple, (row[2], row[3], row[4], row[5]))
-    iterator += 1
-    bar.update(iterator)
+    input_tuple = get_inputs_data_set(str(row[1])[:8])
+    time_int = time_to_int(str(row[1])[8:])
+    nets_arr[time_int]['ds'].addSample(input_tuple, (row[2], row[3], row[4], row[5]))
 
-for mx in nets_arr:
+print('Обучение сети...')
+for key, mx in nets_arr.items():
+    if len(mx['ds']) < 1:
+        continue
     trainer = BackpropTrainer(mx['net'], mx['ds'])
     error = trainer.train()
-
+    print(error)
 
 """Использование обученной сети"""
 print('Использование обученной сети...')
-for row in cursor.execute('SELECT * FROM stock_m1 limit 1'):
-        print(row)
+for row in conn.cursor().execute('SELECT * FROM stock_m1 LIMIT 1'):
+    #print(row)
+    pass
 
 conn.close()
